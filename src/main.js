@@ -2,6 +2,7 @@ import UserRank from "./view/user-rank.js";
 import Menu from "./view/menu.js";
 import Sort from "./view/sorting.js";
 import AllMovies from "./view/movies-all.js";
+import NoMovies from "./view/no-movies.js";
 import MovieCard from "./view/movie-card.js";
 import MovieEdit from "./view/movie-edit.js";
 import ShowMore from "./view/show-more.js";
@@ -22,44 +23,52 @@ const siteMainElement = body.querySelector(`.main`);
 
 render(siteHeaderElement, new UserRank().getElement());
 render(siteMainElement, new Menu(filters).getElement());
-render(siteMainElement, new Sort().getElement());
+renderBoard(cards);
 
-const films = new AllMovies();
-render(siteMainElement, films.getElement());
 
-const filmsLists = films.getElement().querySelectorAll(`.films-list`);
-
-filmsLists.forEach((list, index) => {
-  const container = list.querySelector(`.films-list__container`);
-  const count = index === 0 ? CARD_COUNT_STEP : EXTRA_CARD_COUNT;
-
-  for (let i = 0; i < Math.min(cards.length, count); i++) {
-    renderCard(container, cards[i]);
+function renderBoard(boardCards) {
+  if (boardCards.length === 0) {
+    render(siteMainElement, new NoMovies().getElement());
+    return;
   }
-});
 
-if (cards.length > CARD_COUNT_STEP) {
-  let renderedCardsCount = CARD_COUNT_STEP;
+  render(siteMainElement, new Sort().getElement());
+  const films = new AllMovies();
+  render(siteMainElement, films.getElement());
 
-  const showMoreButton = new ShowMore();
-  render(filmsLists[0], showMoreButton.getElement());
+  const filmsLists = films.getElement().querySelectorAll(`.films-list`);
 
-  showMoreButton.getElement().addEventListener(`click`, (evt) => {
-    evt.preventDefault();
-    const container = films.getElement().querySelector(`.films-list`).querySelector(`.films-list__container`);
-    cards
-      .slice(renderedCardsCount, renderedCardsCount + CARD_COUNT_STEP)
-      .forEach((card) => renderCard(container, card));
+  filmsLists.forEach((list, index) => {
+    const container = list.querySelector(`.films-list__container`);
+    const count = index === 0 ? CARD_COUNT_STEP : EXTRA_CARD_COUNT;
 
-    renderedCardsCount += CARD_COUNT_STEP;
-
-    if (renderedCardsCount >= cards.length) {
-      showMoreButton.getElement().remove(); // удаляем со свизуализируемого DOM-дерева
-      showMoreButton.removeElement();
+    for (let i = 0; i < Math.min(boardCards.length, count); i++) {
+      renderCard(container, boardCards[i]);
     }
   });
-}
 
+  if (boardCards.length > CARD_COUNT_STEP) {
+    let renderedCardsCount = CARD_COUNT_STEP;
+
+    const showMoreButton = new ShowMore();
+    render(filmsLists[0], showMoreButton.getElement());
+
+    showMoreButton.getElement().addEventListener(`click`, (evt) => {
+      evt.preventDefault();
+      const container = films.getElement().querySelector(`.films-list`).querySelector(`.films-list__container`);
+      boardCards
+        .slice(renderedCardsCount, renderedCardsCount + CARD_COUNT_STEP)
+        .forEach((card) => renderCard(container, card));
+
+      renderedCardsCount += CARD_COUNT_STEP;
+
+      if (renderedCardsCount >= boardCards.length) {
+        showMoreButton.getElement().remove(); // удаляем со свизуализируемого DOM-дерева
+        showMoreButton.removeElement();
+      }
+    });
+  }
+}
 
 function renderCard(container, card) {
   const cardComponent = new MovieCard(card);
@@ -75,10 +84,19 @@ function renderCard(container, card) {
     body.removeChild(cardEditComponent.getElement());
   };
 
+  const onEscKeyDown = (evt) => {
+    if (evt.key === `Escape` || evt.key === `Esc`) {
+      evt.preventDefault();
+      deletePopup();
+      document.removeEventListener(`keydown`, onEscKeyDown);
+    }
+  };
+
   Array.of(`.film-card__poster`, `.film-card__title`, `.film-card__comments`)
   .forEach((elementInCard) => {
     cardComponent.getElement().querySelector(elementInCard).addEventListener(`click`, () => {
       showPopup();
+      document.addEventListener(`keydown`, onEscKeyDown);
       body.classList.toggle(`hide-overflow`, true);
     });
   });
@@ -86,6 +104,7 @@ function renderCard(container, card) {
   cardEditComponent.getElement().querySelector(`.film-details__close-btn`)
     .addEventListener(`click`, () => {
       deletePopup();
+      document.addEventListener(`keydown`, onEscKeyDown);
       body.classList.toggle(`hide-overflow`, false);
     });
 }
