@@ -1,12 +1,13 @@
-import {createUserRankTemplate} from "./view/user-rank.js";
-import {createMenuTemplate} from "./view/menu.js";
-import {createSortTemplate} from "./view/sorting.js";
-import {createAllMoviesTemplate} from "./view/movies-all.js";
-import {createMovieCardTemplate} from "./view/movie-card.js";
-// import {createMovieEditTemplate} from "./view/movie-edit.js";
-import {createShowMoreTemplate} from "./view/show-more.js";
+import UserRank from "./view/user-rank.js";
+import Menu from "./view/menu.js";
+import Sort from "./view/sorting.js";
+import AllMovies from "./view/movies-all.js";
+import MovieCard from "./view/movie-card.js";
+import MovieEdit from "./view/movie-edit.js";
+import ShowMore from "./view/show-more.js";
 import {generateCard} from "./mock/card.js";
 import {generateFilter} from "./mock/filter.js";
+import {render} from "./utils.js";
 
 const EXTRA_CARD_COUNT = 2;
 const COMMON_CARD_COUNT = 22;
@@ -19,47 +20,74 @@ const body = document.querySelector(`body`);
 const siteHeaderElement = body.querySelector(`.header`);
 const siteMainElement = body.querySelector(`.main`);
 
-render(siteHeaderElement, createUserRankTemplate());
-render(siteMainElement, createMenuTemplate(filters));
-render(siteMainElement, createSortTemplate());
-render(siteMainElement, createAllMoviesTemplate());
+render(siteHeaderElement, new UserRank().getElement());
+render(siteMainElement, new Menu(filters).getElement());
+render(siteMainElement, new Sort().getElement());
 
-const films = siteMainElement.querySelector(`.films`);
-const filmsLists = films.querySelectorAll(`.films-list`);
+const films = new AllMovies();
+render(siteMainElement, films.getElement());
+
+const filmsLists = films.getElement().querySelectorAll(`.films-list`);
 
 filmsLists.forEach((list, index) => {
   const container = list.querySelector(`.films-list__container`);
   const count = index === 0 ? CARD_COUNT_STEP : EXTRA_CARD_COUNT;
 
-  // if (index === 0) {
-  //   render(container, createMovieEditTemplate(cards[0]));
-  // }
-
   for (let i = 0; i < Math.min(cards.length, count); i++) {
-    render(container, createMovieCardTemplate(cards[i]));
+    renderCard(container, cards[i]);
   }
 });
 
 if (cards.length > CARD_COUNT_STEP) {
   let renderedCardsCount = CARD_COUNT_STEP;
-  render(filmsLists[0], createShowMoreTemplate());
-  const showMoreButton = siteMainElement.querySelector(`.films-list__show-more`);
 
-  showMoreButton.addEventListener(`click`, (evt) => {
+  const showMoreButton = new ShowMore();
+  render(filmsLists[0], showMoreButton.getElement());
+
+  showMoreButton.getElement().addEventListener(`click`, (evt) => {
     evt.preventDefault();
-    const container = films.querySelector(`.films-list`).querySelector(`.films-list__container`);
+    const container = films.getElement().querySelector(`.films-list`).querySelector(`.films-list__container`);
     cards
       .slice(renderedCardsCount, renderedCardsCount + CARD_COUNT_STEP)
-      .forEach((card) => render(container, createMovieCardTemplate(card)));
+      .forEach((card) => renderCard(container, card));
 
     renderedCardsCount += CARD_COUNT_STEP;
 
     if (renderedCardsCount >= cards.length) {
-      showMoreButton.remove();
+      showMoreButton.getElement().remove(); // удаляем со свизуализируемого DOM-дерева
+      showMoreButton.removeElement();
     }
   });
 }
 
-function render(container, template, place = `beforeend`) {
-  container.insertAdjacentHTML(place, template);
+
+function renderCard(container, card) {
+  const cardComponent = new MovieCard(card);
+  const cardEditComponent = new MovieEdit(card);
+
+  render(container, cardComponent.getElement());
+
+  const showPopup = () => {
+    body.appendChild(cardEditComponent.getElement());
+  };
+
+  const deletePopup = () => {
+    body.removeChild(cardEditComponent.getElement());
+  };
+
+  Array.of(`.film-card__poster`, `.film-card__title`, `.film-card__comments`)
+  .forEach((elementInCard) => {
+    cardComponent.getElement().querySelector(elementInCard).addEventListener(`click`, () => {
+      showPopup();
+      body.classList.toggle(`hide-overflow`, true);
+    });
+  });
+
+  cardEditComponent.getElement().querySelector(`.film-details__close-btn`)
+    .addEventListener(`click`, () => {
+      deletePopup();
+      body.classList.toggle(`hide-overflow`, false);
+    });
 }
+
+
