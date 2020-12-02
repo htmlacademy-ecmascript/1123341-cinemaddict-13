@@ -1,5 +1,5 @@
 import dayjs from "dayjs";
-import {createElement} from "../utils";
+import Abstract from "./abstract.js";
 import {allEmojies, allComments} from "../const";
 
 const createCommentsTemplate = (count) => {
@@ -157,25 +157,36 @@ const createMovieEditTemplate = (card = {}) => {
   </section>`;
 };
 
-export default class MovieEdit {
-  constructor(card) {
-    this._element = null;
+export default class MovieEdit extends Abstract {
+  constructor() {
+    super();
+    this._card = null;
+    this._clickHandler = this._clickHandler.bind(this);
+  }
+
+  get currentCard() {
+    return this._card;
+  }
+
+  set currentCard(card) {
     this._card = card;
   }
 
-  getTemplate() { // метод создает строковый шаблон, а ниже превращает в DOM-элемент
+  getTemplate() {
     return createMovieEditTemplate(this._card);
   }
 
-  getElement() { // метод превращает в DOM-элемент полученную строку сверху
-    if (!this._element) {
-      this._element = createElement(this.getTemplate());
-    }
-
-    return this._element;
+  _clickHandler(evt) {
+    evt.preventDefault();
+    this._insideHandler.click();
   }
 
-  removeElement() {
-    this._element = null;
+  setClickHandler(exactFormula) {
+    this._insideHandler = {
+      click: exactFormula
+    };
+
+    const closeButton = this.getElement().querySelector(`.film-details__close-btn`);
+    closeButton.addEventListener(`click`, this._clickHandler);
   }
 }

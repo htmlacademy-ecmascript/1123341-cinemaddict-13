@@ -8,7 +8,7 @@ import MovieEdit from "./view/movie-edit.js";
 import ShowMore from "./view/show-more.js";
 import {generateCard} from "./mock/card.js";
 import {generateFilter} from "./mock/filter.js";
-import {render} from "./utils.js";
+import {render, removeExemplar} from "./utils/view-tools.js";
 
 const EXTRA_CARD_COUNT = 2;
 const COMMON_CARD_COUNT = 22;
@@ -21,40 +21,38 @@ const body = document.querySelector(`body`);
 const siteHeaderElement = body.querySelector(`.header`);
 const siteMainElement = body.querySelector(`.main`);
 
-render(siteHeaderElement, new UserRank().getElement());
-render(siteMainElement, new Menu(filters).getElement());
+render(siteHeaderElement, new UserRank());
+render(siteMainElement, new Menu(filters));
+const cardEditComponent = new MovieEdit();
 renderBoard(cards);
 
 
 function renderBoard(boardCards) {
   if (boardCards.length === 0) {
-    render(siteMainElement, new NoMovies().getElement());
+    render(siteMainElement, new NoMovies());
     return;
   }
 
-  render(siteMainElement, new Sort().getElement());
+  render(siteMainElement, new Sort());
   const films = new AllMovies();
-  render(siteMainElement, films.getElement());
-
+  render(siteMainElement, films);
   const filmsLists = films.getElement().querySelectorAll(`.films-list`);
 
   filmsLists.forEach((list, index) => {
     const container = list.querySelector(`.films-list__container`);
     const count = index === 0 ? CARD_COUNT_STEP : EXTRA_CARD_COUNT;
-
-    for (let i = 0; i < Math.min(boardCards.length, count); i++) {
-      renderCard(container, boardCards[i]);
-    }
+    boardCards
+      .slice(0, Math.min(boardCards.length, count))
+      .forEach((card) => renderCard(container, card));
   });
 
   if (boardCards.length > CARD_COUNT_STEP) {
     let renderedCardsCount = CARD_COUNT_STEP;
 
     const showMoreButton = new ShowMore();
-    render(filmsLists[0], showMoreButton.getElement());
+    render(filmsLists[0], showMoreButton);
 
-    showMoreButton.getElement().addEventListener(`click`, (evt) => {
-      evt.preventDefault();
+    showMoreButton.setClickHandler(() => {
       const container = films.getElement().querySelector(`.films-list`).querySelector(`.films-list__container`);
       boardCards
         .slice(renderedCardsCount, renderedCardsCount + CARD_COUNT_STEP)
@@ -63,8 +61,7 @@ function renderBoard(boardCards) {
       renderedCardsCount += CARD_COUNT_STEP;
 
       if (renderedCardsCount >= boardCards.length) {
-        showMoreButton.getElement().remove(); // удаляем со свизуализируемого DOM-дерева
-        showMoreButton.removeElement();
+        removeExemplar(showMoreButton);
       }
     });
   }
@@ -72,16 +69,20 @@ function renderBoard(boardCards) {
 
 function renderCard(container, card) {
   const cardComponent = new MovieCard(card);
-  const cardEditComponent = new MovieEdit(card);
+  render(container, cardComponent);
 
-  render(container, cardComponent.getElement());
-
-  const showPopup = () => {
-    body.appendChild(cardEditComponent.getElement());
+  const renderPopup = () => {
+    cardEditComponent.currentCard = card;
+    render(body, cardEditComponent);
+    body.classList.toggle(`hide-overflow`, true);
+    document.addEventListener(`keydown`, onEscKeyDown);
+    cardEditComponent.setClickHandler(deletePopup);
   };
 
   const deletePopup = () => {
-    body.removeChild(cardEditComponent.getElement());
+    removeExemplar(cardEditComponent);
+    body.classList.toggle(`hide-overflow`, false);
+    document.removeEventListener(`keydown`, onEscKeyDown);
   };
 
   const onEscKeyDown = (evt) => {
@@ -92,21 +93,7 @@ function renderCard(container, card) {
     }
   };
 
-  Array.of(`.film-card__poster`, `.film-card__title`, `.film-card__comments`)
-  .forEach((elementInCard) => {
-    cardComponent.getElement().querySelector(elementInCard).addEventListener(`click`, () => {
-      showPopup();
-      document.addEventListener(`keydown`, onEscKeyDown);
-      body.classList.toggle(`hide-overflow`, true);
-    });
-  });
-
-  cardEditComponent.getElement().querySelector(`.film-details__close-btn`)
-    .addEventListener(`click`, () => {
-      deletePopup();
-      document.addEventListener(`keydown`, onEscKeyDown);
-      body.classList.toggle(`hide-overflow`, false);
-    });
+  cardComponent.setClickHandler(renderPopup);
 }
 
 
