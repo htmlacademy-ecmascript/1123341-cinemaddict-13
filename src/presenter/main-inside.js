@@ -1,5 +1,6 @@
 import {render, removeExemplar} from "../utils/view-tools";
-import {updateCard} from "../utils/project-tools";
+import {updateCard, compareDate, compareRating} from "../utils/project-tools";
+import {SortType} from "../const.js";
 import NoMovies from "../view/no-movies";
 import Sort from "../view/sorting.js";
 import MoviesLists from "../view/movies-all.js";
@@ -25,10 +26,14 @@ export default class InnerMain {
     this._cardsPresentersList = {};
     this._cardChangeAtAll = this._cardChangeAtAll.bind(this);
     this._deleteAllPopups = this._deleteAllPopups.bind(this);
+    this._doStartSorting = this._doStartSorting.bind(this);
+    this._currentSortType = SortType.DEFAULT;
+    this._defaultCardsList = null;
   }
 
   createTotally(cards) {
     this._moviesCards = cards.slice();
+    this._defaultCardsList = cards.slice();
     this._renderInnerMain();
   }
 
@@ -47,6 +52,32 @@ export default class InnerMain {
 
   _renderSort() {
     render(siteMainElement, this._sortComponent);
+    this._sortComponent.setSortTypeChangeHandler(this._doStartSorting);
+  }
+
+  _sortCards(sortType) {
+    switch (sortType) {
+      case SortType.DATE:
+        this._moviesCards.sort(compareDate);
+        break;
+      case SortType.RATING:
+        this._moviesCards.sort(compareRating);
+        break;
+      default:
+        this._moviesCards = this._defaultCardsList.slice();
+    }
+
+    this._currentSortType = sortType;
+  }
+
+  _doStartSorting(sortType) {
+    if (this._currentSortType === sortType) {
+      return;
+    }
+
+    this._sortCards(sortType);
+    this._clearInsideMain();
+    this._renderInnerMain();
   }
 
   _renderMoviesLists() {
