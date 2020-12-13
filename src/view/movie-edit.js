@@ -1,20 +1,35 @@
 import dayjs from "dayjs";
-import Abstract from "./abstract.js";
-import {allEmojies, allComments} from "../const";
+import AbstractSmart from "./abstract-smart.js";
+import {allEmojies} from "../const";
 
-const createCommentsTemplate = (count) => {
+const BLANK_CARD = {
+  poster: ``,
+  title: ``,
+  rating: ``,
+  releaseDate: null,
+  duration: ``,
+  genres: [],
+  description: ``,
+  watchPlan: false,
+  hasWatched: false,
+  isFavorite: false,
+  ageLimit: ``,
+  allComments: []
+};
+
+const createCommentsTemplate = (count, comments) => {
   return new Array(count)
     .fill()
     .map((_comment, index) => {
       return `<li class="film-details__comment">
         <span class="film-details__comment-emoji">
-          <img src="./images/emoji/${allComments[index].emoji}.png" width="55" height="55" alt="emoji-${allComments[index].emoji}">
+          <img data-emoji="${comments[index].emoji}" src="./images/emoji/${comments[index].emoji}.png" width="55" height="55" alt="emoji-${comments[index].emoji}">
         </span>
         <div>
-          <p class="film-details__comment-text">${allComments[index].text}</p>
+          <p class="film-details__comment-text">${comments[index].text}</p>
           <p class="film-details__comment-info">
-            <span class="film-details__comment-author">${allComments[index].author}</span>
-            <span class="film-details__comment-day">${allComments[index].day}</span>
+            <span class="film-details__comment-author">${comments[index].author}</span>
+            <span class="film-details__comment-day">${comments[index].day}</span>
             <button class="film-details__comment-delete">Delete</button>
           </p>
         </div>
@@ -28,7 +43,7 @@ const createEmojiesTemplate = (emojies) => {
     .map((emoji) => {
       return `<input class="film-details__emoji-item visually-hidden" name="comment-emoji" type="radio" id="emoji-${emoji}" value="${emoji}">
         <label class="film-details__emoji-label" for="emoji-${emoji}">
-          <img src="./images/emoji/${emoji}.png" width="30" height="30" alt="emoji">
+          <img src="./images/emoji/${emoji}.png" width="30" height="30" alt="emoji" data-emoji="${emoji}">
         </label>`;
     })
     .join(``);
@@ -55,11 +70,12 @@ const createMovieEditTemplate = (card = {}) => {
     genres,
     watchPlan,
     hasWatched,
-    isFavorite
+    isFavorite,
+    allComments
   } = card;
 
   const date = dayjs(releaseDate).format(`D MMMM YYYY`);
-  const comments = createCommentsTemplate(commentsSum);
+  const comments = createCommentsTemplate(commentsSum, allComments);
   const emojies = createEmojiesTemplate(allEmojies);
   const actualGenres = generateGenresTemplate(genres);
 
@@ -160,37 +176,103 @@ const createMovieEditTemplate = (card = {}) => {
   </section>`;
 };
 
-export default class MovieEdit extends Abstract {
-  constructor(card) {
+export default class MovieEdit extends AbstractSmart {
+  constructor(card = BLANK_CARD) {
     super();
-    this._card = card;
+    this._parsedCard = MovieEdit.parseCardToData(card); // уже при первой загрузке получаем распарсенные данные
     this._handler = {
       cardClick: null,
       willWatchClick: null,
       watchedClick: null,
-      favoriteClick: null
+      favoriteClick: null,
+      formSubmit: null
     };
     this._closeClickHandler = this._closeClickHandler.bind(this);
     this._willWatchClickHandler = this._willWatchClickHandler.bind(this);
     this._watchedClickHandler = this._watchedClickHandler.bind(this);
     this._favoriteClickHandler = this._favoriteClickHandler.bind(this);
+    this._emojiClickHandler = this._emojiClickHandler.bind(this);
+    this._enterKeydownHandler = this._enterKeydownHandler.bind(this);
+    this._setInnerHandlers();
   }
 
   get currentCard() {
-    return this._card;
+    return this._parsedCard;
   }
 
   set currentCard(card) {
-    this._card = card;
+    this._parsedCard = MovieEdit.parseCardToData(card);
+  }
+
+  // можно добавить к исходным свойствам карточки новые свойства
+  static parseCardToData(card) {
+    return Object.assign(
+        {},
+        card,
+        {
+          isRatingGood: card.rating > 7, // ??????? измени или удали ???????
+          isHated: !card.isFavorite, // ??????? измени или удали ???????
+          commentsSum: card.allComments.length
+        }
+    );
+  }
+
+  static parseDataToCard(parsedCard) { //  ??????? для сохранения изменений карточки внесенных на сайте ???????
+    parsedCard = Object.assign({}, parsedCard);
+    parsedCard.isFavorite = parsedCard.isHated ? false : true;
+    delete parsedCard.isRatingGood;
+    delete parsedCard.isHated;
+    delete parsedCard.commentsSum;
+    return parsedCard;
   }
 
   getTemplate() {
-    return createMovieEditTemplate(this._card);
+    return createMovieEditTemplate(this._parsedCard);
+  }
+
+  _emojiClickHandler(evt) {
+    evt.preventDefault();
+    const parent = evt.target.parentElement;
+    if (parent.className !== `film-details__emoji-label`) {
+      return;
+    }
+
+    const emojiName = evt.target.dataset.emoji;
+    const newComment = this.getElement().querySelector(`.film-details__new-comment`);
+    newComment.firstElementChild.innerHTML = (
+      `<img
+        data-emoji="${emojiName}"
+        src="./images/emoji/${emojiName}.png"
+        width="55" height="55"
+        alt="emoji-${emojiName}"
+      >`
+    );
+  }
+
+  _enterKeydownHandler(evt) {
+    if (evt.keyCode === 13 && !evt.shiftKey) { // когда просто нажимаем enter
+      const commentPattern = this.getElement().querySelector(`.film-details__new-comment`);
+      const child = commentPattern.firstElementChild;
+      const img = child.querySelector(`img`);
+
+      if (this.getElement().querySelector(`textarea`).value !== `` && img !== null) {
+        const comment = {
+          text: this.getElement().querySelector(`textarea`).value,
+          author: `Noname`,
+          emoji: img.dataset.emoji,
+          day: `today`
+        };
+
+        const allComments = this._parsedCard.allComments;
+        allComments.push(comment);
+        this._handler.formSubmit(MovieEdit.parseDataToCard(this._parsedCard));
+      }
+    }
   }
 
   _closeClickHandler(evt) {
     evt.preventDefault();
-    this._insideHandler.click();
+    this._handler.cardClick();
   }
 
   _willWatchClickHandler(evt) {
@@ -208,11 +290,17 @@ export default class MovieEdit extends Abstract {
     this._handler.favoriteClick();
   }
 
-  setCloseClickHandler(exactFormula) {
-    this._insideHandler = {
-      click: exactFormula
-    };
+  restoreHandlers() {
+    this._setInnerHandlers();
+  }
 
+  _setInnerHandlers() {
+    this.getElement().addEventListener(`click`, this._emojiClickHandler);
+    this.getElement().querySelector(`textarea`).addEventListener(`keydown`, this._enterKeydownHandler);
+  }
+
+  setCloseClickHandler(exactFormula) {
+    this._handler.cardClick = exactFormula;
     const closeButton = this.getElement().querySelector(`.film-details__close-btn`);
     closeButton.addEventListener(`click`, this._closeClickHandler);
   }
@@ -233,5 +321,9 @@ export default class MovieEdit extends Abstract {
     this._handler.favoriteClick = exactFormula;
     this.getElement().querySelector(`.film-details__control-label--favorite`)
       .addEventListener(`click`, this._favoriteClickHandler);
+  }
+
+  setFormSubmitHandler(exactFormula) {
+    this._handler.formSubmit = exactFormula;
   }
 }

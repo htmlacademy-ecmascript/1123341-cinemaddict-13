@@ -4,8 +4,9 @@ import MovieCard from "../view/movie-card.js";
 const body = document.querySelector(`body`);
 
 export default class CardPresenter {
-  constructor(cardContainer, cardChangeAtAll, deleteAllPopups) {
+  constructor(cardContainer, cardContainers, cardChangeAtAll, deleteAllPopups) {
     this._cardContainer = cardContainer;
+    this._cardContainers = cardContainers;
     this._cardChangeAtAll = cardChangeAtAll;
     this._deleteAllPopups = deleteAllPopups;
     this._cardComponent = null;
@@ -15,8 +16,8 @@ export default class CardPresenter {
     this._watchedClickHandler = this._watchedClickHandler.bind(this);
     this._favoriteClickHandler = this._favoriteClickHandler.bind(this);
     this._closeClickHandler = this._closeClickHandler.bind(this);
+    this._formSubmitHandler = this._formSubmitHandler.bind(this);
     this._onEscKeyDown = this._onEscKeyDown.bind(this);
-    this._allCardsPresenters = {};
   }
 
   // создается экземпляр компонента карты с эксклюзивными данными
@@ -27,7 +28,7 @@ export default class CardPresenter {
   createTotally(card) {
     this._card = card;
 
-    const oldCard = this._cardComponent; // либо обновленная карта, либо ничего
+    const oldCard = this._cardComponent; // либо старая карта, либо ничего
     const oldEdit = this._cardEditComponent;
 
     this._cardComponent = new MovieCard(this._card);
@@ -41,6 +42,7 @@ export default class CardPresenter {
     this._cardEditComponent.setWillWatchClickHandler(this._willWatchClickHandler);
     this._cardEditComponent.setWatchedClickHandler(this._watchedClickHandler);
     this._cardEditComponent.setFavoriteClickHandler(this._favoriteClickHandler);
+    this._cardEditComponent.setFormSubmitHandler(this._formSubmitHandler);
 
     if (oldCard === null || oldEdit === null) {
       render(this._cardContainer, this._cardComponent);
@@ -111,6 +113,16 @@ export default class CardPresenter {
             {isFavorite: !this._card.isFavorite}
         )
     );
+  }
+
+
+  // в отличие от this_favoriteClickHandler (см.выше)
+  // мы передаем новые данные карточки во вьюхе попапа
+  // а данные обновляются также у карточки!!!
+  _formSubmitHandler(card) {
+    this._cardChangeAtAll(card);
+    this._cardEditComponent.getElement()
+      .scrollTo(0, this._cardEditComponent.getElement().scrollHeight);
   }
 
   _onEscKeyDown(evt) {
