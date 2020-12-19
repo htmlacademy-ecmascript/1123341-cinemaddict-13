@@ -6,7 +6,7 @@ export default class Smart extends Abstract {
     this._parsedCard = {};
   }
 
-  // update - это объект с нужными свойствами
+  // usersUpdate - это объект с нужными свойствами
   updateParsedCard(usersUpdate, justDataUpdating) {
     if (!usersUpdate) {
       return;
@@ -29,7 +29,6 @@ export default class Smart extends Abstract {
     let prevElement = this.getElement();
     const parent = prevElement.parentElement;
     this.removeElement();
-
     const newElement = this.getElement();
 
     parent.replaceChild(newElement, prevElement);

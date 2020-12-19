@@ -1,4 +1,5 @@
 import dayjs from "dayjs";
+import he from "he";
 import AbstractSmart from "./abstract-smart.js";
 import {allEmojies} from "../const";
 
@@ -26,7 +27,7 @@ const createCommentsTemplate = (count, comments) => {
           <img data-emoji="${comments[index].emoji}" src="./images/emoji/${comments[index].emoji}.png" width="55" height="55" alt="emoji-${comments[index].emoji}">
         </span>
         <div>
-          <p class="film-details__comment-text">${comments[index].text}</p>
+          <p class="film-details__comment-text">${he.encode(comments[index].text)}</p>
           <p class="film-details__comment-info">
             <span class="film-details__comment-author">${comments[index].author}</span>
             <span class="film-details__comment-day">${comments[index].day}</span>
@@ -180,28 +181,15 @@ export default class MovieEdit extends AbstractSmart {
   constructor(card = BLANK_CARD) {
     super();
     this._parsedCard = MovieEdit.parseCardToData(card); // уже при первой загрузке получаем распарсенные данные
-    this._handler = {
-      cardClick: null,
-      willWatchClick: null,
-      watchedClick: null,
-      favoriteClick: null,
-      formSubmit: null
-    };
     this._closeClickHandler = this._closeClickHandler.bind(this);
     this._willWatchClickHandler = this._willWatchClickHandler.bind(this);
     this._watchedClickHandler = this._watchedClickHandler.bind(this);
     this._favoriteClickHandler = this._favoriteClickHandler.bind(this);
     this._emojiClickHandler = this._emojiClickHandler.bind(this);
     this._enterKeydownHandler = this._enterKeydownHandler.bind(this);
+    this._deleteClickHandler = this._deleteClickHandler.bind(this);
+    this._popupChangeOnly = this._popupChangeOnly.bind(this);
     this._setInnerHandlers();
-  }
-
-  get currentCard() {
-    return this._parsedCard;
-  }
-
-  set currentCard(card) {
-    this._parsedCard = MovieEdit.parseCardToData(card);
   }
 
   // можно добавить к исходным свойствам карточки новые свойства
@@ -211,7 +199,6 @@ export default class MovieEdit extends AbstractSmart {
         card,
         {
           isRatingGood: card.rating > 7, // ??????? измени или удали ???????
-          isHated: !card.isFavorite, // ??????? измени или удали ???????
           commentsSum: card.allComments.length
         }
     );
@@ -219,9 +206,7 @@ export default class MovieEdit extends AbstractSmart {
 
   static parseDataToCard(parsedCard) { //  ??????? для сохранения изменений карточки внесенных на сайте ???????
     parsedCard = Object.assign({}, parsedCard);
-    parsedCard.isFavorite = parsedCard.isHated ? false : true;
     delete parsedCard.isRatingGood;
-    delete parsedCard.isHated;
     delete parsedCard.commentsSum;
     return parsedCard;
   }
@@ -230,7 +215,14 @@ export default class MovieEdit extends AbstractSmart {
     return createMovieEditTemplate(this._parsedCard);
   }
 
-  _emojiClickHandler(evt) {
+  reset(card) {
+    this.updateParsedCard(
+        MovieEdit.parseCardToData(card)
+    );
+  }
+
+
+  _emojiClickHandler(evt) { // внутренний хэндлер
     evt.preventDefault();
     const parent = evt.target.parentElement;
     if (parent.className !== `film-details__emoji-label`) {
@@ -249,7 +241,7 @@ export default class MovieEdit extends AbstractSmart {
     );
   }
 
-  _enterKeydownHandler(evt) {
+  _enterKeydownHandler(evt) { // внутренний хэндлер
     if (evt.keyCode === 13 && !evt.shiftKey) { // когда просто нажимаем enter
       const commentPattern = this.getElement().querySelector(`.film-details__new-comment`);
       const child = commentPattern.firstElementChild;
@@ -263,40 +255,89 @@ export default class MovieEdit extends AbstractSmart {
           day: `today`
         };
 
-        const allComments = this._parsedCard.allComments;
-        allComments.push(comment);
-        this._handler.formSubmit(MovieEdit.parseDataToCard(this._parsedCard));
+        // this.updateParsedCard(this._parsedCard);
+        // не учтет новое количество комментариев
+
+        // this.updateParsedCard(MovieEdit.parseCardToData(this._parsedCard)); !!! НЕ СТИРАТЬ
+        // ПОЧЕМУ НЕ РАБОТАЕТ ВАРИАНТ ВЫШЕ!!!!
+        // НЕЛЬЗЯ ЗДЕСЬ ИЗМЕНЯТЬ САМУ ПЕРЕМЕННУЮ ВОТ ТАК this._parsedCard.allComments.push
+
+        this.updateParsedCard({
+          allComments: [...this._parsedCard.allComments, comment],
+          commentsSum: this._parsedCard.allComments.length + 1
+        });
+
+        this._popupChangeOnly();
+        this.getElement().scrollTo(0, this.getElement().scrollHeight);
       }
     }
   }
 
-  _closeClickHandler(evt) {
-    evt.preventDefault();
-    this._handler.cardClick();
+  _deleteClickHandler(evt) { // внутренний хэндлер
+    if (evt.target.className === `film-details__comment-delete`) {
+      const index = this._parsedCard.allComments.findIndex((user) => {
+        return user.author === evt.target.parentElement.querySelector(`.film-details__comment-author`).textContent;
+      });
+
+      this.updateParsedCard({
+        allComments: [
+          ...this._parsedCard.allComments.slice(0, index),
+          ...this._parsedCard.allComments.slice(index + 1)
+        ],
+        commentsSum: this._parsedCard.allComments.length - 1
+      });
+
+      this._popupChangeOnly();
+      this.getElement().scrollTo(0, this.getElement().scrollHeight);
+    }
   }
+
 
   _willWatchClickHandler(evt) {
     evt.preventDefault();
-    this._handler.willWatchClick();
+    this.updateParsedCard({
+      watchPlan: !this._parsedCard.watchPlan,
+    });
+    this._popupChangeOnly();
   }
 
   _watchedClickHandler(evt) {
     evt.preventDefault();
-    this._handler.watchedClick();
+    this.updateParsedCard({
+      hasWatched: !this._parsedCard.hasWatched,
+    });
+    this._popupChangeOnly();
   }
 
   _favoriteClickHandler(evt) {
     evt.preventDefault();
-    this._handler.favoriteClick();
+    this.updateParsedCard({
+      isFavorite: !this._parsedCard.isFavorite,
+    });
+    this._popupChangeOnly();
   }
 
   restoreHandlers() {
     this._setInnerHandlers();
+    this.setCloseClickHandler(this._handler.cardClick);
+    this.setPopupChangeOnly(this._handler.cardChange);
   }
 
   _setInnerHandlers() {
     this.getElement().addEventListener(`click`, this._emojiClickHandler);
     this.getElement().querySelector(`textarea`).addEventListener(`keydown`, this._enterKeydownHandler);
+    this.getElement().addEventListener(`click`, this._deleteClickHandler);
+    this.getElement().querySelector(`.film-details__control-label--watchlist`)
+      .addEventListener(`click`, this._willWatchClickHandler);
+    this.getElement().querySelector(`.film-details__control-label--watched`)
+      .addEventListener(`click`, this._watchedClickHandler);
+    this.getElement().querySelector(`.film-details__control-label--favorite`)
+      .addEventListener(`click`, this._favoriteClickHandler);
+  }
+
+  _closeClickHandler(evt) {
+    evt.preventDefault();
+    this._handler.cardClick(evt);
   }
 
   setCloseClickHandler(exactFormula) {
@@ -305,25 +346,11 @@ export default class MovieEdit extends AbstractSmart {
     closeButton.addEventListener(`click`, this._closeClickHandler);
   }
 
-  setWillWatchClickHandler(exactFormula) {
-    this._handler.willWatchClick = exactFormula;
-    this.getElement().querySelector(`.film-details__control-label--watchlist`)
-      .addEventListener(`click`, this._willWatchClickHandler);
+  _popupChangeOnly() {
+    this._handler.cardChange(MovieEdit.parseDataToCard(this._parsedCard));
   }
 
-  setWatchedClickHandler(exactFormula) {
-    this._handler.watchedClick = exactFormula;
-    this.getElement().querySelector(`.film-details__control-label--watched`)
-      .addEventListener(`click`, this._watchedClickHandler);
-  }
-
-  setFavoriteClickHandler(exactFormula) {
-    this._handler.favoriteClick = exactFormula;
-    this.getElement().querySelector(`.film-details__control-label--favorite`)
-      .addEventListener(`click`, this._favoriteClickHandler);
-  }
-
-  setFormSubmitHandler(exactFormula) {
-    this._handler.formSubmit = exactFormula;
+  setPopupChangeOnly(exactFormula) {
+    this._handler.cardChange = exactFormula;
   }
 }

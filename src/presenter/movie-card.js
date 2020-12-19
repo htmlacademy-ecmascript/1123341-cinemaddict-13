@@ -1,92 +1,65 @@
 import {render, removeExemplar, replace} from "../utils/view-tools";
-import MovieEdit from "../view/movie-edit.js";
 import MovieCard from "../view/movie-card.js";
-const body = document.querySelector(`body`);
+import {UpdatePopup, UpdatedVersion} from "../const.js";
+
+const Mode = {
+  SHOW_POPUP: `SHOW_POPUP`,
+  DEL_POPUP: `DEL_POPUP`
+};
 
 export default class CardPresenter {
-  constructor(cardContainer, cardContainers, cardChangeAtAll, deleteAllPopups) {
+  constructor(cardContainer, cardDataChange) {
     this._cardContainer = cardContainer;
-    this._cardContainers = cardContainers;
-    this._cardChangeAtAll = cardChangeAtAll;
-    this._deleteAllPopups = deleteAllPopups;
+    this._cardDataChange = cardDataChange;
     this._cardComponent = null;
-    this._cardEditComponent = null;
-    this._cardClickHandler = this._cardClickHandler.bind(this);
-    this._willWatchClickHandler = this._willWatchClickHandler.bind(this);
-    this._watchedClickHandler = this._watchedClickHandler.bind(this);
-    this._favoriteClickHandler = this._favoriteClickHandler.bind(this);
-    this._closeClickHandler = this._closeClickHandler.bind(this);
-    this._formSubmitHandler = this._formSubmitHandler.bind(this);
-    this._onEscKeyDown = this._onEscKeyDown.bind(this);
+    this._mode = Mode.DEL_POPUP;
+    this._handleCardClick = this._handleCardClick.bind(this);
+    this._handleWillWatchClick = this._handleWillWatchClick.bind(this);
+    this._handleWatchedClick = this._handleWatchedClick.bind(this);
+    this._handleFavoriteClick = this._handleFavoriteClick.bind(this);
   }
 
   // создается экземпляр компонента карты с эксклюзивными данными
-  // запихиваем в него обработчик
+  // запихиваем в него обработчики
   // рисуем представление
-  // ------------------------------------------------------------
-  // также перезаписываем обновленную карту и попап
+  // также перезаписываем обновленную карту
   createTotally(card) {
     this._card = card;
-
-    const oldCard = this._cardComponent; // либо старая карта, либо ничего
-    const oldEdit = this._cardEditComponent;
-
+    const oldCard = this._cardComponent;
     this._cardComponent = new MovieCard(this._card);
-    this._cardEditComponent = new MovieEdit(this._card);
+    this._cardComponent.setCardClickHandler(this._handleCardClick);
+    this._cardComponent.setWillWatchClickHandler(this._handleWillWatchClick);
+    this._cardComponent.setWatchedClickHandler(this._handleWatchedClick);
+    this._cardComponent.setFavoriteClickHandler(this._handleFavoriteClick);
 
-    this._cardComponent.setCardClickHandler(this._cardClickHandler);
-    this._cardComponent.setWillWatchClickHandler(this._willWatchClickHandler);
-    this._cardComponent.setWatchedClickHandler(this._watchedClickHandler);
-    this._cardComponent.setFavoriteClickHandler(this._favoriteClickHandler);
-    this._cardEditComponent.setCloseClickHandler(this._closeClickHandler);
-    this._cardEditComponent.setWillWatchClickHandler(this._willWatchClickHandler);
-    this._cardEditComponent.setWatchedClickHandler(this._watchedClickHandler);
-    this._cardEditComponent.setFavoriteClickHandler(this._favoriteClickHandler);
-    this._cardEditComponent.setFormSubmitHandler(this._formSubmitHandler);
-
-    if (oldCard === null || oldEdit === null) {
+    if (oldCard === null) {
       render(this._cardContainer, this._cardComponent);
       return;
     }
 
-    // Проверка на наличие в DOM необходима,
-    // чтобы не пытаться заменить то, что не было отрисовано
-    if (this._cardContainer.contains(oldCard.getElement())) {
-      replace(this._cardComponent, oldCard);
-    }
-
-    if (body.contains(oldEdit.getElement())) {
-      replace(this._cardEditComponent, oldEdit);
-    }
-
+    replace(this._cardComponent, oldCard);
     removeExemplar(oldCard);
-    removeExemplar(oldEdit);
   }
 
   destroy() {
     removeExemplar(this._cardComponent);
-    removeExemplar(this._cardEditComponent);
   }
 
-  _cardClickHandler() {
-    this._deleteAllPopups();
-    render(body, this._cardEditComponent);
-    body.classList.toggle(`hide-overflow`, true);
-    document.addEventListener(`keydown`, this._onEscKeyDown);
+  _handleCardClick() {
+    this._cardDataChange(
+        UpdatePopup.POPUP_AT_ALL,
+        UpdatedVersion.PATCH,
+        Object.assign(
+            {},
+            this._card
+        )
+    );
   }
 
-  _closeClickHandler() {
-    this._cardEditComponent.getElement().remove();
-    body.classList.toggle(`hide-overflow`, false);
-    document.removeEventListener(`keydown`, this._onEscKeyDown);
-  }
-
-  deletePopup() {
-    this._closeClickHandler();
-  }
-
-  _willWatchClickHandler() {
-    this._cardChangeAtAll(
+  _handleWillWatchClick() {
+    this._cardDataChange(
+        UpdatePopup.POPUP_AT_ALL,
+        UpdatedVersion.MINOR,
         Object.assign(
             {},
             this._card,
@@ -95,8 +68,10 @@ export default class CardPresenter {
     );
   }
 
-  _watchedClickHandler() {
-    this._cardChangeAtAll(
+  _handleWatchedClick() {
+    this._cardDataChange(
+        UpdatePopup.POPUP_AT_ALL,
+        UpdatedVersion.MINOR,
         Object.assign(
             {},
             this._card,
@@ -105,8 +80,10 @@ export default class CardPresenter {
     );
   }
 
-  _favoriteClickHandler() {
-    this._cardChangeAtAll(
+  _handleFavoriteClick() {
+    this._cardDataChange(
+        UpdatePopup.POPUP_AT_ALL,
+        UpdatedVersion.MINOR,
         Object.assign(
             {},
             this._card,
@@ -114,22 +91,5 @@ export default class CardPresenter {
         )
     );
   }
-
-
-  // в отличие от this_favoriteClickHandler (см.выше)
-  // мы передаем новые данные карточки во вьюхе попапа
-  // а данные обновляются также у карточки!!!
-  _formSubmitHandler(card) {
-    this._cardChangeAtAll(card);
-    this._cardEditComponent.getElement()
-      .scrollTo(0, this._cardEditComponent.getElement().scrollHeight);
-  }
-
-  _onEscKeyDown(evt) {
-    if (evt.key === `Escape` || evt.key === `Esc`) {
-      evt.preventDefault();
-      this._closeClickHandler();
-      document.removeEventListener(`keydown`, this._onEscKeyDown);
-    }
-  }
 }
+

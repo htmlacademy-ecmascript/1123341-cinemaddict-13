@@ -78,4 +78,22 @@ export const SortType = {
   MOST_COMMENTED: `most-commented`
 };
 
+export const UpdatePopup = {
+  OTHER: `OTHER`,
+  POPUP_AT_ALL: `POPUP_AT_ALL`,
+};
+
+export const UpdatedVersion = {
+  PATCH: `PATCH`,
+  MINOR: `MINOR`,
+  MAJOR: `MAJOR`
+};
+
+export const FilterType = {
+  ALL: `all`,
+  WATCHLIST: `watchlist`,
+  HISTORY: `history`,
+  FAVORITES: `favorites`,
+};
+
 
