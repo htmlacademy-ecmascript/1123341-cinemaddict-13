@@ -1,7 +1,14 @@
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
 import {nanoid} from "nanoid";
 import {getRandomInteger} from "../utils/common-tools.js";
-import {generateDuration, generateDate} from "../utils/project-tools.js";
+import {generateDate} from "../utils/project-tools.js";
 import {ages, moviesTitles, genres, descriptions, allComments} from "../const";
+dayjs.extend(relativeTime);
+
+
+const currentDate = new Date();
+const parsedCurrentDate = dayjs(currentDate);
 
 const generateComments = () => {
   return new Array(getRandomInteger(0, allComments.length - 1))
@@ -57,7 +64,7 @@ export const generateCard = () => {
     title: title.slice(0, title.length - 4),
     rating: generateRating(),
     releaseDate: generateDate(),
-    duration: generateDuration(), // это файл dayjs
+    duration: getRandomInteger(80, 150),
     genres: generateGenres(),
     description: generateDescription(),
     watchPlan: Boolean(getRandomInteger(0, 1)),
@@ -65,6 +72,7 @@ export const generateCard = () => {
     isFavorite: Boolean(getRandomInteger(0, 1)),
     ageLimit: generateAgeLimits(),
     allComments: generateComments(),
+    dateOfView: parsedCurrentDate.subtract(getRandomInteger(0, 400), `day`)
   };
 };
 

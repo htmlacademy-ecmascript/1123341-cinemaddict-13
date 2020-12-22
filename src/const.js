@@ -96,4 +96,15 @@ export const FilterType = {
   FAVORITES: `favorites`,
 };
 
+export const MenuItem = {
+  CATALOG: `CATALOG`,
+  STATISTICS: `STATISTICS`
+};
 
+export const TimePeriod = {
+  ALL_TIME: `all-time`,
+  TODAY: `today`,
+  WEEK: `week`,
+  MONTH: `month`,
+  YEAR: `year`
+};
