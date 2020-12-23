@@ -33,7 +33,7 @@ export const allComments = [
   }
 ];
 
-export const ages = [`0+`, `6+`, `12+`, `16+`, `18+`];
+export const ages = [0, 6, 12, 16, 18];
 
 export const allEmojies = [`angry`, `puke`, `sleeping`, `smile`];
 
@@ -75,18 +75,19 @@ export const SortType = {
   DEFAULT: `default`,
   DATE: `date`,
   RATING: `rating`,
-  MOST_COMMENTED: `most-commented`
 };
 
 export const UpdatePopup = {
   OTHER: `OTHER`,
   POPUP_AT_ALL: `POPUP_AT_ALL`,
+  OPEN_POPUP: `OPEN_POPUP`,
 };
 
 export const UpdatedVersion = {
   PATCH: `PATCH`,
   MINOR: `MINOR`,
-  MAJOR: `MAJOR`
+  MAJOR: `MAJOR`,
+  INIT: `INIT`
 };
 
 export const FilterType = {

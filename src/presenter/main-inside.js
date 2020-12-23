@@ -6,6 +6,7 @@ import NoMovies from "../view/no-movies";
 import Sort from "../view/sorting.js";
 import MoviesLists from "../view/movies-all.js";
 import ShowMore from "../view/show-more.js";
+import Loading from "../view/loading.js";
 import CardPresenter from "./movie-card";
 import CardEditPresenter from "./movie-edit";
 
@@ -13,11 +14,13 @@ const CARD_COUNT_STEP = 5;
 const EXTRA_CARD_COUNT = 2;
 
 export default class InnerMain {
-  constructor(mainContainer, filterModel, cardsModel) {
+  constructor(mainContainer, filterModel, cardsModel, api) {
     this._cardsModel = cardsModel;
     this._filterModel = filterModel;
     this._mainContainer = mainContainer;
+    this._api = api;
     this._sortComponent = null;
+    this._loadingComponent = new Loading();
     this._noMoviesComponent = new NoMovies();
     this._showMoreButtonComponent = null;
     this._containerOfLists = null;
@@ -30,6 +33,7 @@ export default class InnerMain {
     this._handleCardDataChange = this._handleCardDataChange.bind(this);
     this._handleSomeWhatRerender = this._handleSomeWhatRerender.bind(this);
     this._handleStartSorting = this._handleStartSorting.bind(this);
+    this._isLoading = true;
     this.show = this.show.bind(this);
     this.hide = this.hide.bind(this);
     this._cardEditPresenter = new CardEditPresenter(this._handleCardDataChange);
@@ -47,27 +51,21 @@ export default class InnerMain {
 
   _getSortedCards() {
     // у экземпляра другого класса вызываем метод getCards()
-    // тот в свою очередь возвращает _cardsGroup
-    // this._cardsGroup = {
-    //   main: [],
-    //   rated: [],
-    //   commented: [],
-    //   default: []
-    // };
+    // тот в свою очередь возвращает _cards
     const filterType = this._filterModel.getFilter();
-    const cardsGroup = this._cardsModel.getCards();
-    const filtredCards = filterCapacity[filterType](cardsGroup.main);
+    const cards = this._cardsModel.getCards();
+    // когда у объекта в свойство записана функция
+    // то вызов выглядит так (см.ниже)
+    const filtredCards = filterCapacity[filterType](cards);
 
     switch (this._checkedSortType) {
       case SortType.RATING:
-        return Object.assign({}, cardsGroup, {main: filtredCards.sort(compareRating)});
-      case SortType.MOST_COMMENTED:
-        return Object.assign({}, cardsGroup, {main: filtredCards.sort(compareCommentsCount)});
+        return filtredCards.slice().sort(compareRating);
       case SortType.DATE:
-        return Object.assign({}, cardsGroup, {main: filtredCards.sort(compareDate)});
+        return filtredCards.slice().sort(compareDate);
     }
 
-    return Object.assign({}, cardsGroup, {main: filtredCards});
+    return filtredCards.slice();
   }
 
   _handleCardDataChange(updateType, updatedVersion, updatedCard) {
@@ -75,14 +73,17 @@ export default class InnerMain {
     // т.е. массивы создаются только в cardsModel
     // и ссылку на _handleSomeWhatRerender (см. ниже) можно только получить там!
     switch (updateType) {
-      case UpdatePopup.OTHER:
-        this._cardsModel = `KOKOKOKO`;
-        break;
       case UpdatePopup.POPUP_AT_ALL:
-        this._cardsModel.changePopup(updatedVersion, updatedCard);
+        this._api.updateMovie(updatedCard)
+          .then((response) => this._cardsModel.changePopup(updatedVersion, response));
         break;
-      default:
-        this._cardsModel = `KOKOKOKO`;
+      case UpdatePopup.OPEN_POPUP:
+        this._api.getComments(updatedCard)
+          .then((comments) => {
+            this._cardsModel.setComments(comments, updatedCard);
+            this._cardsModel.openPopup(updatedVersion, updatedCard);
+          });
+        break;
     }
   }
 
@@ -108,15 +109,20 @@ export default class InnerMain {
         this.clearInsideMain({resetRenderedCardsCount: true, resetSortType: true});
         this.renderInnerMain();
         break;
+      case UpdatedVersion.INIT:
+        this._isLoading = false;
+        removeExemplar(this._loadingComponent);
+        this.renderInnerMain();
+        break;
     }
   }
 
   // Кнопка уже нарисована. Но можно на нее еще жать
   // с помощью этого хэндлера
   _handleShowMoreClick() {
-    const cardsCount = this._getSortedCards().main.length;
+    const cardsCount = this._getSortedCards().length;
     const newRenderedCardsCount = Math.min(cardsCount, this._renderedCardsCount + CARD_COUNT_STEP);
-    const cards = this._getSortedCards().main.slice(this._renderedCardsCount, newRenderedCardsCount);
+    const cards = this._getSortedCards().slice(this._renderedCardsCount, newRenderedCardsCount);
 
     this._renderCards(cards, this._cardContainers[0]);
     this._renderedCardsCount = newRenderedCardsCount;
@@ -137,19 +143,20 @@ export default class InnerMain {
   }
 
   clearInsideMain({resetRenderedCardsCount = false, resetSortType = false}) {
-    const mainCardsCount = this._getSortedCards().main.length;
+    const mainCardsCount = this._getSortedCards().length;
 
     Object.keys(this._allPresenters).forEach((list) => {
       Object.values(this._allPresenters[list])
         .forEach((cardPresenter) => cardPresenter.destroy());
     });
 
-    this._allPresenters = this._allPresenters = {
+    this._allPresenters = {
       mainList: {},
       rateList: {},
       commentsList: {}
     };
 
+    removeExemplar(this._loadingComponent);
     removeExemplar(this._noMoviesComponent);
     removeExemplar(this._sortComponent);
     removeExemplar(this._containerOfLists);
@@ -174,7 +181,12 @@ export default class InnerMain {
     this._cardsModel.addObserver(this._handleSomeWhatRerender);
     this._filterModel.addObserver(this._handleSomeWhatRerender);
 
-    if (this._getSortedCards().main.length === 0) {
+    if (this._isLoading) {
+      render(this._mainContainer, this._loadingComponent);
+      return;
+    }
+
+    if (this._getSortedCards().length === 0) {
       render(this._mainContainer, this._noMoviesComponent);
       return;
     }
@@ -182,19 +194,24 @@ export default class InnerMain {
     this._renderSort();
     this._renderContainerOfList();
 
-    const mainCardsCount = this._getSortedCards().main.length;
-    const mainCards = this._getSortedCards().main.slice(0, Math.min(mainCardsCount, this._renderedCardsCount));
+    const сardsCount = this._getSortedCards().length;
+
+    const mainCards = this._getSortedCards()
+      .slice(0, Math.min(сardsCount, this._renderedCardsCount));
+
+    const ratedCards = this._getSortedCards()
+      .sort(compareRating)
+      .slice(0, Math.min(сardsCount, EXTRA_CARD_COUNT));
+
+    const commentedCards = this._getSortedCards()
+      .sort(compareCommentsCount)
+      .slice(0, Math.min(сardsCount, EXTRA_CARD_COUNT));
+
     this._renderCards(mainCards, this._cardContainers[0]);
-
-    const ratedCardsCount = this._getSortedCards().rated.length;
-    const ratedCards = this._getSortedCards().rated.slice(0, Math.min(ratedCardsCount, EXTRA_CARD_COUNT));
     this._renderCards(ratedCards, this._cardContainers[1]);
-
-    const commentedCardsCount = this._getSortedCards().commented.length;
-    const commentedCards = this._getSortedCards().commented.slice(0, Math.min(commentedCardsCount, EXTRA_CARD_COUNT));
     this._renderCards(commentedCards, this._cardContainers[2]);
 
-    if (this._getSortedCards().main.length > this._renderedCardsCount) {
+    if (this._getSortedCards().length > this._renderedCardsCount) {
       this._renderShowMoreButton();
     }
   }

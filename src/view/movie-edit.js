@@ -2,7 +2,7 @@ import dayjs from "dayjs";
 import he from "he";
 import AbstractSmart from "./abstract-smart.js";
 import {allEmojies} from "../const";
-import {generateDuration} from "../utils/project-tools.js";
+import {generateDuration, generateRecordDay} from "../utils/project-tools.js";
 
 const BLANK_CARD = {
   poster: ``,
@@ -23,19 +23,24 @@ const createCommentsTemplate = (count, comments) => {
   return new Array(count)
     .fill()
     .map((_comment, index) => {
-      return `<li class="film-details__comment">
-        <span class="film-details__comment-emoji">
-          <img data-emoji="${comments[index].emoji}" src="./images/emoji/${comments[index].emoji}.png" width="55" height="55" alt="emoji-${comments[index].emoji}">
-        </span>
-        <div>
-          <p class="film-details__comment-text">${he.encode(comments[index].text)}</p>
-          <p class="film-details__comment-info">
-            <span class="film-details__comment-author">${comments[index].author}</span>
-            <span class="film-details__comment-day">${comments[index].day}</span>
-            <button class="film-details__comment-delete">Delete</button>
-          </p>
-        </div>
-      </li>`;
+      if (comments[index].hasOwnProperty(`id`)) {
+        const parsedDate = generateRecordDay(comments[index].date);
+        return `<li class="film-details__comment">
+          <span class="film-details__comment-emoji">
+            <img data-emoji="${comments[index].emotion}" src="./images/emoji/${comments[index].emotion}.png" width="55" height="55" alt="emoji-${comments[index].emotion}">
+          </span>
+          <div>
+            <p class="film-details__comment-text">${he.encode(comments[index].comment)}</p>
+            <p class="film-details__comment-info">
+              <span class="film-details__comment-author">${comments[index].author}</span>
+              <span class="film-details__comment-day">${parsedDate}</span>
+              <button class="film-details__comment-delete">Delete</button>
+            </p>
+          </div>
+        </li>`;
+      }
+
+      return ``;
     })
     .join(``);
 };
@@ -73,7 +78,11 @@ const createMovieEditTemplate = (card = {}) => {
     watchPlan,
     hasWatched,
     isFavorite,
-    allComments
+    allComments,
+    director,
+    actors,
+    writers,
+    releaseCountry
   } = card;
 
   const date = dayjs(releaseDate).format(`D MMMM YYYY`);
@@ -90,9 +99,9 @@ const createMovieEditTemplate = (card = {}) => {
         </div>
         <div class="film-details__info-wrap">
           <div class="film-details__poster">
-            <img class="film-details__poster-img" src="./images/posters/${image}" alt="${title}">
+            <img class="film-details__poster-img" src="./${image}" alt="${title}">
 
-            <p class="film-details__age">${ageLimit}</p>
+            <p class="film-details__age">${ageLimit}+</p>
           </div>
 
           <div class="film-details__info">
@@ -110,15 +119,15 @@ const createMovieEditTemplate = (card = {}) => {
             <table class="film-details__table">
               <tr class="film-details__row">
                 <td class="film-details__term">Director</td>
-                <td class="film-details__cell">Anthony Mann</td>
+                <td class="film-details__cell">${director}</td>
               </tr>
               <tr class="film-details__row">
                 <td class="film-details__term">Writers</td>
-                <td class="film-details__cell">Anne Wigton, Heinz Herald, Richard Weil</td>
+                <td class="film-details__cell">${writers.join(`, `)}</td>
               </tr>
               <tr class="film-details__row">
                 <td class="film-details__term">Actors</td>
-                <td class="film-details__cell">Erich von Stroheim, Mary Beth Hughes, Dan Duryea</td>
+                <td class="film-details__cell">${actors.join(`, `)}</td>
               </tr>
               <tr class="film-details__row">
                 <td class="film-details__term">Release Date</td>
@@ -130,7 +139,7 @@ const createMovieEditTemplate = (card = {}) => {
               </tr>
               <tr class="film-details__row">
                 <td class="film-details__term">Country</td>
-                <td class="film-details__cell">USA</td>
+                <td class="film-details__cell">${releaseCountry}</td>
               </tr>
               <tr class="film-details__row">
                 <td class="film-details__term">Genres</td>
@@ -200,13 +209,13 @@ export default class MovieEdit extends AbstractSmart {
         {},
         card,
         {
-          isRatingGood: card.rating > 7, // ??????? измени или удали ???????
           commentsSum: card.allComments.length
         }
     );
   }
 
-  static parseDataToCard(parsedCard) { //  ??????? для сохранения изменений карточки внесенных на сайте ???????
+  // превращение расширенных данных в данные для отрисовки
+  static parseDataToCard(parsedCard) {
     parsedCard = Object.assign({}, parsedCard);
     delete parsedCard.isRatingGood;
     delete parsedCard.commentsSum;
@@ -222,7 +231,6 @@ export default class MovieEdit extends AbstractSmart {
         MovieEdit.parseCardToData(card)
     );
   }
-
 
   _emojiClickHandler(evt) { // внутренний хэндлер
     evt.preventDefault();
@@ -259,11 +267,9 @@ export default class MovieEdit extends AbstractSmart {
 
         // this.updateParsedCard(this._parsedCard);
         // не учтет новое количество комментариев
-
         // this.updateParsedCard(MovieEdit.parseCardToData(this._parsedCard)); !!! НЕ СТИРАТЬ
         // ПОЧЕМУ НЕ РАБОТАЕТ ВАРИАНТ ВЫШЕ!!!!
         // НЕЛЬЗЯ ЗДЕСЬ ИЗМЕНЯТЬ САМУ ПЕРЕМЕННУЮ ВОТ ТАК this._parsedCard.allComments.push
-
         this.updateParsedCard({
           allComments: [...this._parsedCard.allComments, comment],
           commentsSum: this._parsedCard.allComments.length + 1
@@ -298,7 +304,7 @@ export default class MovieEdit extends AbstractSmart {
   _willWatchClickHandler(evt) {
     evt.preventDefault();
     this.updateParsedCard({
-      watchPlan: !this._parsedCard.watchPlan,
+      watchPlan: !this._parsedCard.watchPlan
     });
     this._popupChangeOnly();
   }
@@ -307,6 +313,9 @@ export default class MovieEdit extends AbstractSmart {
     evt.preventDefault();
     this.updateParsedCard({
       hasWatched: !this._parsedCard.hasWatched,
+      dateOfView: !this._parsedCard.hasWatched
+        ? dayjs(new Date())
+        : null
     });
     this._popupChangeOnly();
   }

@@ -1,18 +1,13 @@
 import {render, removeExemplar, replace} from "../utils/view-tools";
 import MovieCard from "../view/movie-card.js";
 import {UpdatePopup, UpdatedVersion} from "../const.js";
-
-const Mode = {
-  SHOW_POPUP: `SHOW_POPUP`,
-  DEL_POPUP: `DEL_POPUP`
-};
+import dayjs from "dayjs";
 
 export default class CardPresenter {
   constructor(cardContainer, cardDataChange) {
     this._cardContainer = cardContainer;
     this._cardDataChange = cardDataChange;
     this._cardComponent = null;
-    this._mode = Mode.DEL_POPUP;
     this._handleCardClick = this._handleCardClick.bind(this);
     this._handleWillWatchClick = this._handleWillWatchClick.bind(this);
     this._handleWatchedClick = this._handleWatchedClick.bind(this);
@@ -47,12 +42,9 @@ export default class CardPresenter {
 
   _handleCardClick() {
     this._cardDataChange(
-        UpdatePopup.POPUP_AT_ALL,
+        UpdatePopup.OPEN_POPUP,
         UpdatedVersion.PATCH,
-        Object.assign(
-            {},
-            this._card
-        )
+        this._card
     );
   }
 
@@ -75,7 +67,11 @@ export default class CardPresenter {
         Object.assign(
             {},
             this._card,
-            {hasWatched: !this._card.hasWatched}
+            {hasWatched: !this._card.hasWatched},
+            {dateOfView: !this._card.hasWatched
+              ? dayjs(new Date())
+              : null
+            }
         )
     );
   }
