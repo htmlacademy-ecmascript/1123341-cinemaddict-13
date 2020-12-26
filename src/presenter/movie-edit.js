@@ -1,11 +1,12 @@
 import MovieEditView from "../view/movie-edit.js";
 import {removeExemplar, render} from "../utils/view-tools.js";
-import {UpdatedVersion, UpdatePopup} from "../const.js";
+import {UpdatedVersion, UpdateMovie} from "../const.js";
 
 const Mode = {
   SHOW_POPUP: `SHOW_POPUP`,
   DEL_POPUP: `DEL_POPUP`
 };
+
 const body = document.querySelector(`body`);
 
 export default class MovieEdit {
@@ -15,7 +16,6 @@ export default class MovieEdit {
     this._cardEditComponent = null;
     this._mode = Mode.DEL_POPUP;
     this._handleCloseClick = this._handleCloseClick.bind(this);
-    this._popupChangeOnly = this._popupChangeOnly.bind(this);
     this._onEscKeyDown = this._onEscKeyDown.bind(this);
     this._ctrlEnterKeyDownHandler = this._ctrlEnterKeyDownHandler.bind(this);
   }
@@ -25,7 +25,6 @@ export default class MovieEdit {
     const oldEdit = this._cardEditComponent;
     this._cardEditComponent = new MovieEditView(this._card);
     this._cardEditComponent.setCloseClickHandler(this._handleCloseClick);
-    this._cardEditComponent.setPopupChangeOnly(this._popupChangeOnly);
 
     removeExemplar(oldEdit);
     render(this._cardEditContainer, this._cardEditComponent);
@@ -54,15 +53,13 @@ export default class MovieEdit {
   _ctrlEnterKeyDownHandler(evt) {
     if (evt.keyCode === 13 && evt.ctrlKey) {
       evt.preventDefault();
-      this._handleCloseClick();
+
       this._cardDataChange(
-          UpdatePopup.POPUP_AT_ALL,
+          UpdateMovie.POPUP_AT_ALL,
           UpdatedVersion.MAJOR,
-          Object.assign(
-              this._card,
-              this._cardForSave
-          )
+          this._cardEditComponent.parseDataToCard()
       );
+
       document.removeEventListener(`keydown`, this._ctrlEnterKeyDownHandler);
     }
   }
@@ -76,7 +73,11 @@ export default class MovieEdit {
     }
   }
 
-  _popupChangeOnly(card) {
-    this._cardForSave = card;
+  setViewState() {
+    const parsedCard = this._cardEditComponent.parseCardToData(this._card);
+    this._cardEditComponent.shake(() => {
+      this._cardEditComponent.updateParsedCard(parsedCard);
+    });
+    document.addEventListener(`keydown`, this._ctrlEnterKeyDownHandler);
   }
 }

@@ -3,7 +3,9 @@ import CardsModel from "./model/cards.js";
 
 const Method = {
   GET: `GET`,
-  PUT: `PUT`
+  PUT: `PUT`,
+  DELETE: `DELETE`,
+  POST: `POST`
 };
 
 const SuccessHTTPStatusRange = {
@@ -32,11 +34,27 @@ export default class Api {
       .then(Api.toJSON);
   }
 
+  deleteComment(user) {
+    return this._load({
+      url: `comments/${user.id}`,
+      method: Method.DELETE
+    });
+  }
+
+  addComment(card, user) {
+    return this._load({
+      url: `comments/${card.id}`,
+      method: Method.POST,
+      body: JSON.stringify(user),
+      headers: new Headers({"Content-Type": `application/json`})
+    });
+  }
+
   updateMovie(card) { // возвращает fetch
     return this._load({
       url: `movies/${card.id}`,
       method: Method.PUT,
-      body: JSON.stringify(CardsModel.adaptToServer(card)),
+      body: JSON.stringify(CardsModel.adaptToServer(card)), // !!!! выдает актуальные данные, только на сервер не записываются
       headers: new Headers({"Content-Type": `application/json`})
     })
       .then(Api.toJSON)

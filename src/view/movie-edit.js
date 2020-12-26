@@ -3,6 +3,7 @@ import he from "he";
 import AbstractSmart from "./abstract-smart.js";
 import {allEmojies} from "../const";
 import {generateDuration, generateRecordDay} from "../utils/project-tools.js";
+import {nanoid} from "nanoid";
 
 const BLANK_CARD = {
   poster: ``,
@@ -19,22 +20,24 @@ const BLANK_CARD = {
   allComments: []
 };
 
-const createCommentsTemplate = (count, comments) => {
-  return new Array(count)
-    .fill()
-    .map((_comment, index) => {
-      if (comments[index].hasOwnProperty(`id`)) {
-        const parsedDate = generateRecordDay(comments[index].date);
-        return `<li class="film-details__comment">
+const createCommentsTemplate = (comments) => {
+  return comments
+    .map((comment) => {
+      if (comment.hasOwnProperty(`id`)) {
+        const parsedDate = generateRecordDay(comment.date);
+
+        return `<li id="user-id${comment.id}" class="film-details__comment">
           <span class="film-details__comment-emoji">
-            <img data-emoji="${comments[index].emotion}" src="./images/emoji/${comments[index].emotion}.png" width="55" height="55" alt="emoji-${comments[index].emotion}">
+            <img data-emoji="${comment.emotion}" src="./images/emoji/${comment.emotion}.png" width="55" height="55" alt="emoji-${comment.emotion}">
           </span>
           <div>
-            <p class="film-details__comment-text">${he.encode(comments[index].comment)}</p>
+            <p class="film-details__comment-text">${he.encode(comment.comment)}</p>
             <p class="film-details__comment-info">
-              <span class="film-details__comment-author">${comments[index].author}</span>
+              <span class="film-details__comment-author">${comment.author}</span>
               <span class="film-details__comment-day">${parsedDate}</span>
-              <button class="film-details__comment-delete">Delete</button>
+              <button class="film-details__comment-delete" ${comment.isDisabled ? `disabled` : ``}>
+                ${comment.isDeletingComment ? `For deleting...` : `Delete`}
+              </button>
             </p>
           </div>
         </li>`;
@@ -56,7 +59,7 @@ const createEmojiesTemplate = (emojies) => {
     .join(``);
 };
 
-const generateGenresTemplate = (genres) => {
+const createGenresTemplate = (genres) => {
   return genres
     .map((genre) => {
       return `<span class="film-details__genre">${genre}</span>`;
@@ -86,9 +89,9 @@ const createMovieEditTemplate = (card = {}) => {
   } = card;
 
   const date = dayjs(releaseDate).format(`D MMMM YYYY`);
-  const comments = createCommentsTemplate(commentsSum, allComments);
+  const comments = createCommentsTemplate(allComments);
   const emojies = createEmojiesTemplate(allEmojies);
-  const actualGenres = generateGenresTemplate(genres);
+  const actualGenres = createGenresTemplate(genres);
   const parsedDuration = generateDuration(duration);
 
   return `<section class="film-details">
@@ -191,7 +194,8 @@ const createMovieEditTemplate = (card = {}) => {
 export default class MovieEdit extends AbstractSmart {
   constructor(card = BLANK_CARD) {
     super();
-    this._parsedCard = MovieEdit.parseCardToData(card); // уже при первой загрузке получаем распарсенные данные
+    this.parseCardToData = this.parseCardToData.bind(this);
+    this._parsedCard = this.parseCardToData(card); // уже при первой загрузке получаем распарсенные данные
     this._closeClickHandler = this._closeClickHandler.bind(this);
     this._willWatchClickHandler = this._willWatchClickHandler.bind(this);
     this._watchedClickHandler = this._watchedClickHandler.bind(this);
@@ -199,27 +203,43 @@ export default class MovieEdit extends AbstractSmart {
     this._emojiClickHandler = this._emojiClickHandler.bind(this);
     this._enterKeydownHandler = this._enterKeydownHandler.bind(this);
     this._deleteClickHandler = this._deleteClickHandler.bind(this);
-    this._popupChangeOnly = this._popupChangeOnly.bind(this);
+    this.parseDataToCard = this.parseDataToCard.bind(this);
     this._setInnerHandlers();
   }
 
-  // можно добавить к исходным свойствам карточки новые свойства
-  static parseCardToData(card) {
+  parseCardToData(card) {
     return Object.assign(
         {},
         card,
         {
-          commentsSum: card.allComments.length
+          commentsSum: card.allComments.length,
+          allComments: card.allComments
+            .map((user) => Object.assign(
+                {},
+                user,
+                {isDeletingComment: false, isDisabled: false}
+            ))
         }
     );
   }
 
-  // превращение расширенных данных в данные для отрисовки
-  static parseDataToCard(parsedCard) {
-    parsedCard = Object.assign({}, parsedCard);
-    delete parsedCard.isRatingGood;
-    delete parsedCard.commentsSum;
-    return parsedCard;
+  parseDataToCard() {
+    const commentators = this._parsedCard.allComments
+      .filter((commentator) => commentator.isDeletingComment === false);
+
+    this._parsedCard = Object.assign(
+        {},
+        this._parsedCard,
+        {allComments: commentators}
+    );
+
+    this._parsedCard.allComments.forEach((user) => {
+      delete user.isDeletingComment;
+      delete user.isDisabled;
+    });
+
+    delete this._parsedCard.commentsSum;
+    return this._parsedCard;
   }
 
   getTemplate() {
@@ -227,9 +247,7 @@ export default class MovieEdit extends AbstractSmart {
   }
 
   reset(card) {
-    this.updateParsedCard(
-        MovieEdit.parseCardToData(card)
-    );
+    this.updateParsedCard(this.parseCardToData(card));
   }
 
   _emojiClickHandler(evt) { // внутренний хэндлер
@@ -258,24 +276,26 @@ export default class MovieEdit extends AbstractSmart {
       const img = child.querySelector(`img`);
 
       if (this.getElement().querySelector(`textarea`).value !== `` && img !== null) {
-        const comment = {
-          text: this.getElement().querySelector(`textarea`).value,
+        const newComment = {
+          id: nanoid(5),
+          comment: this.getElement().querySelector(`textarea`).value,
           author: `Noname`,
-          emoji: img.dataset.emoji,
-          day: `today`
+          emotion: img.dataset.emoji,
+          date: dayjs(new Date()).utc().format(),
+          isDeletingComment: false,
+          isDisabled: false
         };
 
         // this.updateParsedCard(this._parsedCard);
         // не учтет новое количество комментариев
-        // this.updateParsedCard(MovieEdit.parseCardToData(this._parsedCard)); !!! НЕ СТИРАТЬ
+        // this.updateParsedCard(this.parseCardToData(this._parsedCard)); !!! НЕ СТИРАТЬ
         // ПОЧЕМУ НЕ РАБОТАЕТ ВАРИАНТ ВЫШЕ!!!!
         // НЕЛЬЗЯ ЗДЕСЬ ИЗМЕНЯТЬ САМУ ПЕРЕМЕННУЮ ВОТ ТАК this._parsedCard.allComments.push
         this.updateParsedCard({
-          allComments: [...this._parsedCard.allComments, comment],
+          allComments: [...this._parsedCard.allComments, newComment],
           commentsSum: this._parsedCard.allComments.length + 1
         });
 
-        this._popupChangeOnly();
         this.getElement().scrollTo(0, this.getElement().scrollHeight);
       }
     }
@@ -284,18 +304,27 @@ export default class MovieEdit extends AbstractSmart {
   _deleteClickHandler(evt) { // внутренний хэндлер
     if (evt.target.className === `film-details__comment-delete`) {
       const index = this._parsedCard.allComments.findIndex((user) => {
-        return user.author === evt.target.parentElement.querySelector(`.film-details__comment-author`).textContent;
+        const userId = `${evt.target.parentElement.parentElement.parentElement.id.slice(7)}`;
+        return user.id === userId;
       });
+
+      const userForDelete = Object.assign(
+          {},
+          this._parsedCard.allComments[index],
+          {
+            isDeletingComment: true,
+            isDisabled: true
+          }
+      );
 
       this.updateParsedCard({
         allComments: [
           ...this._parsedCard.allComments.slice(0, index),
+          userForDelete,
           ...this._parsedCard.allComments.slice(index + 1)
-        ],
-        commentsSum: this._parsedCard.allComments.length - 1
+        ]
       });
 
-      this._popupChangeOnly();
       this.getElement().scrollTo(0, this.getElement().scrollHeight);
     }
   }
@@ -306,7 +335,6 @@ export default class MovieEdit extends AbstractSmart {
     this.updateParsedCard({
       watchPlan: !this._parsedCard.watchPlan
     });
-    this._popupChangeOnly();
   }
 
   _watchedClickHandler(evt) {
@@ -317,7 +345,6 @@ export default class MovieEdit extends AbstractSmart {
         ? dayjs(new Date())
         : null
     });
-    this._popupChangeOnly();
   }
 
   _favoriteClickHandler(evt) {
@@ -325,13 +352,11 @@ export default class MovieEdit extends AbstractSmart {
     this.updateParsedCard({
       isFavorite: !this._parsedCard.isFavorite,
     });
-    this._popupChangeOnly();
   }
 
   restoreHandlers() {
     this._setInnerHandlers();
     this.setCloseClickHandler(this._handler.cardClick);
-    this.setPopupChangeOnly(this._handler.cardChange);
   }
 
   _setInnerHandlers() {
@@ -355,13 +380,5 @@ export default class MovieEdit extends AbstractSmart {
     this._handler.cardClick = exactFormula;
     const closeButton = this.getElement().querySelector(`.film-details__close-btn`);
     closeButton.addEventListener(`click`, this._closeClickHandler);
-  }
-
-  _popupChangeOnly() {
-    this._handler.cardChange(MovieEdit.parseDataToCard(this._parsedCard));
-  }
-
-  setPopupChangeOnly(exactFormula) {
-    this._handler.cardChange = exactFormula;
   }
 }
