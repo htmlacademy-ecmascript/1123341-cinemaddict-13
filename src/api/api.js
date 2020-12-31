@@ -1,5 +1,5 @@
 // Модуль, который будет отправлять на сервер REST-запросы
-import CardsModel from "./model/cards.js";
+import CardsModel from "../model/cards.js";
 
 const Method = {
   GET: `GET`,
@@ -47,7 +47,8 @@ export default class Api {
       method: Method.POST,
       body: JSON.stringify(user),
       headers: new Headers({"Content-Type": `application/json`})
-    });
+    })
+      .then(Api.toJSON);
   }
 
   updateMovie(card) { // возвращает fetch
@@ -59,6 +60,16 @@ export default class Api {
     })
       .then(Api.toJSON)
       .then(CardsModel.adaptToClient);
+  }
+
+  sync(data) {
+    return this._load({
+      url: `movies/sync`,
+      method: Method.POST,
+      body: JSON.stringify(data),
+      headers: new Headers({"Content-Type": `application/json`})
+    })
+      .then(Api.toJSON);
   }
 
   _load({url, method = Method.GET, body = null, headers = new Headers()}) {
